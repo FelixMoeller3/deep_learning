@@ -3,6 +3,7 @@ import sentencepiece as spm
 import pandas as pd
 import os
 import tempfile
+import json
 
 
 def prepare_dataset_for_training(dataset):
@@ -43,6 +44,23 @@ def train_sentencepiece(model_prefix: str, whitespace: bool):
         treat_whitespace_as_suffix=whitespace,
         model_prefix=model_prefix,  # Set the model prefix
     )
+    # Load the trained model
+    sp = spm.SentencePieceProcessor(model_file=f"{model_prefix}.model")
+
+    # Extract vocabulary
+    vocab_size = sp.get_piece_size()  # Number of pieces in the model
+    vocab = {i: sp.id_to_piece(i) for i in range(vocab_size)}
+
+    # Prepare a dictionary to save the model and vocabulary
+    model_data = {"model_type": "bpe", "vocab_size": vocab_size, "vocab": vocab}
+
+    # Prepare a dictionary to save the model and vocabulary
+    model_data = {"model_type": "bpe", "vocab_size": len(vocab), "vocab": vocab}
+
+    # Save the model data as JSON
+    with open(f"{model_prefix}.json", "w") as json_file:
+        json.dump(model_data, json_file, ensure_ascii=False, indent=4)
+
     # Clean up the temporary file
     os.remove(dataset_file_path)
 
@@ -67,12 +85,8 @@ def main():
     model_prefix = f"sentencepiece_{language}_suffix_{whitespace}"
     train_sentencepiece(model_prefix=model_prefix, whitespace=whitespace)
 
-    test_text = (
-        "He attended Fairfield Seminary and graduated from Union College with a degree in civil engineering in 1846, where he was a member of the Kappa Alpha Society and was elected to Phi Beta Kappa.  After college he taught school while studying law and attained admission to the bar in 1848.  He practiced in Fonda and Broadalbin, and relocated to Johnstown in 1862."
-    )
-    encoded, decoded = test_tokenizer(
-        model_prefix=model_prefix, test_text=test_text
-    )
+    test_text = "He attended Fairfield Seminary and graduated from Union College with a degree in civil engineering in 1846, where he was a member of the Kappa Alpha Society and was elected to Phi Beta Kappa.  After college he taught school while studying law and attained admission to the bar in 1848.  He practiced in Fonda and Broadalbin, and relocated to Johnstown in 1862."
+    encoded, decoded = test_tokenizer(model_prefix=model_prefix, test_text=test_text)
     print(f"Encoded: {encoded}")
     print(f"Decoded: {decoded}")
 
