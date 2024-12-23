@@ -42,7 +42,7 @@ def test_tokenizer(tokenizer_path):
 
 
 def main():
-    model_prefix = "sentencepiece_en_suffix"
+    model_prefix = "sentencepiece_en_prefix"
     whitespace = True
 
     # Train and save the tokenizer
