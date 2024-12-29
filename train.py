@@ -1,12 +1,14 @@
+# !pip install datasets  # uncomment in colab
+
 import os
 from datasets import load_dataset, Dataset
 from transformers import (
     GPTNeoXConfig,
     GPTNeoXForCausalLM,
+    PreTrainedTokenizerFast,
     Trainer,
     TrainingArguments,
 )
-import sentencepiece as spm
 
 debug = True
 
@@ -15,8 +17,7 @@ def main():
     # ---------------------------------------
     # 1) Load your SentencePiece model as a Tokenizer object in memory
     # ---------------------------------------
-    sp = spm.SentencePieceProcessor()
-    sp.load("sentencepiece_en_suffix_True.model")
+    tokenizer = PreTrainedTokenizerFast.from_pretrained("./ConvertedTokenizer")
 
     # ---------------------------------------
     # 2) Load your dataset
@@ -45,7 +46,7 @@ def main():
     # 3. Create a ~14M GPT-NeoX config
     # ---------------------------------------
     config = GPTNeoXConfig(
-        vocab_size=sp.vocab_size(),  # must match your tokenizer
+        vocab_size=tokenizer.vocab_size,
         hidden_size=256,
         num_hidden_layers=6,
         num_attention_heads=8,
@@ -62,30 +63,16 @@ def main():
     # 5. Tokenize the dataset
     # ---------------------------------------
     # Wikipedia data typically has a "text" field.
-    def tokenize_with_sentencepiece(example, max_length=1024):
-        # Encode the text
-        token_ids = sp.encode(example["text"])
-
-        # Truncate if necessary
-        if len(token_ids) > max_length:
-            token_ids = token_ids[:max_length]
-
-        # Create an attention mask (1 for real tokens, 0 for padded tokens)
-        attention_mask = [1] * len(token_ids)
-
-        # (Optional) Pad up to max_length; SentencePiece doesn't do this automatically
-        # padding_length = max_length - len(token_ids)
-        # if padding_length > 0:
-        #     token_ids += [0] * padding_length
-        #     attention_mask += [0] * padding_length
-
-        # Return a dictionary consistent with what HF tokenizers typically produce
-        return {"input_ids": token_ids, "attention_mask": attention_mask}
+    def tokenize_function(example):
+        return tokenizer(
+            example["text"],
+            truncation=True,
+            max_length=1024,  # or smaller to save memory
+        )
 
     # We remove the original "text" column after tokenization
     tokenized_dataset = dataset.map(
-        # tokenize_function,
-        tokenize_with_sentencepiece,
+        tokenize_function,
         batched=True,
         num_proc=4,  # adjust if you have more or fewer CPU cores
         remove_columns=["text"],
@@ -95,27 +82,27 @@ def main():
     # 6. (Optional) Group texts into 1024-token chunks
     # ---------------------------------------
     # This can improve throughput by reducing the overhead from short sequences.
-    # block_size = 1024
+    block_size = 1024
 
-    # def group_texts(examples):
-    #     concatenated_ids = []
-    #     for ids in examples["input_ids"]:
-    #         concatenated_ids.extend(ids)
+    def group_texts(examples):
+        concatenated_ids = []
+        for ids in examples["input_ids"]:
+            concatenated_ids.extend(ids)
 
-    #     # Drop the remainder so everything is a full block
-    #     total_length = (len(concatenated_ids) // block_size) * block_size
-    #     result = []
-    #     for i in range(0, total_length, block_size):
-    #         result.append(concatenated_ids[i : i + block_size])
+        # Drop the remainder so everything is a full block
+        total_length = (len(concatenated_ids) // block_size) * block_size
+        result = []
+        for i in range(0, total_length, block_size):
+            result.append(concatenated_ids[i : i + block_size])
 
-    #     return {"input_ids": result, "attention_mask": [[1] * block_size] * len(result)}
+        return {"input_ids": result, "attention_mask": [[1] * block_size] * len(result)}
 
-    # tokenized_dataset = tokenized_dataset.map(
-    #     group_texts,
-    #     batched=True,
-    #     batch_size=1000,
-    #     num_proc=4,
-    # )
+    tokenized_dataset = tokenized_dataset.map(
+        group_texts,
+        batched=True,
+        batch_size=1000,
+        num_proc=4,
+    )
 
     # ---------------------------------------
     # 7. Create training arguments
@@ -126,7 +113,7 @@ def main():
         num_train_epochs=3,  # adjust as desired
         per_device_train_batch_size=4,  # depends on your GPU memory
         per_device_eval_batch_size=4,
-        evaluation_strategy="no",
+        evaluation_strategy="steps",
         eval_steps=1000,
         save_steps=1000,
         logging_steps=200,
@@ -143,13 +130,12 @@ def main():
     trainer = Trainer(
         model=model,
         args=training_args,
-        # train_dataset=tokenized_dataset["train"],
-        train_dataset=tokenized_dataset,
-        # eval_dataset=(
-        #     tokenized_dataset["validation"]
-        #     if "validation" in tokenized_dataset
-        #     else None
-        # ),
+        train_dataset=tokenized_dataset["train"],
+        eval_dataset=(
+            tokenized_dataset["validation"]
+            if "validation" in tokenized_dataset
+            else None
+        ),
     )
 
     # ---------------------------------------
