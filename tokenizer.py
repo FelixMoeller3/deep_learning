@@ -1,4 +1,6 @@
 from datasets import load_dataset
+from transformers import convert_slow_tokenizer, PreTrainedTokenizerFast
+import tokenizers
 import sentencepiece as spm
 import pandas as pd
 import os
@@ -42,6 +44,7 @@ def train_sentencepiece(model_prefix: str, whitespace: bool):
         vocab_size=16000,
         model_type="bpe",
         treat_whitespace_as_suffix=whitespace,
+        add_dummy_prefix=False,
         model_prefix=model_prefix,  # Set the model prefix
     )
     # Load the trained model
@@ -65,6 +68,53 @@ def train_sentencepiece(model_prefix: str, whitespace: bool):
     os.remove(dataset_file_path)
 
 
+def tokenizer_to_huggingface(model_prefix):
+    # Load the SentencePiece model
+    spm_tokenizer = spm.SentencePieceProcessor(model_file=f"{model_prefix}.model")
+    spm_tokenizer.vocab_file = f"{model_prefix}.model"
+
+    # Convert SentencePiece tokenizer to Hugging Face format
+    spm_converter = convert_slow_tokenizer.SpmConverter(spm_tokenizer)
+    converted = spm_converter.converted()
+
+    # Create a directory to save the tokenizer files
+    output_dir = "ConvertedTokenizer"
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Save the converted tokenizer to JSON
+    converted.save(os.path.join(output_dir, "tokenizer.json"))
+
+    # Save the tokenizer configuration
+    tokenizer_config = {
+        "model_max_length": 1024,
+        "clean_up_tokenization_spaces": False,
+        "pad_token": "<PAD>",
+        "unk_token": "<UNK>",
+        "bos_token": "<BOS>",
+        "eos_token": "<EOS>",
+        "mask_token": "<MASK>",
+        "padding_side": "right",
+        "truncation_side": "left",
+    }
+    with open(os.path.join(output_dir, "tokenizer_config.json"), "w") as f:
+        json.dump(tokenizer_config, f, indent=4)
+
+    # Load the PreTrainedTokenizerFast from the directory
+    tok = PreTrainedTokenizerFast.from_pretrained(output_dir)
+
+    # set pre tokenizer to
+    # "Metaspace", replacement "▁", prepend_scheme "never", split false
+    tok.backend_tokenizer.pre_tokenizer = tokenizers.pre_tokenizers.Metaspace(
+        replacement="▁", prepend_scheme="never", split=False
+    )
+    # tok.backend_tokenizer.normalizer =
+
+    # set decoder to
+    # "Metaspace", replacement "▁", prepend_scheme "never", split false
+
+    tok.save_pretrained(output_dir)
+
+
 def test_tokenizer(model_prefix, test_text):
     # Load the trained SentencePiece model
     sp = spm.SentencePieceProcessor()
@@ -72,11 +122,24 @@ def test_tokenizer(model_prefix, test_text):
 
     # Encode the test text
     encoded = sp.EncodeAsPieces(test_text)
-
+    token_ids = sp.EncodeAsIds(test_text)
+    print(token_ids)
     # Decode the encoded text
     decoded = sp.DecodePieces(encoded)
 
     return encoded, decoded
+
+
+def test_tokenizer_hf(model_prefix, test_text):
+    # Load the Hugging Face tokenizer
+    tokenizer = PreTrainedTokenizerFast.from_pretrained("./ConvertedTokenizer")
+    # Tokenize the test text
+    tokenized = tokenizer.tokenize(test_text)
+    token_ids = tokenizer.encode(test_text, add_special_tokens=True)
+    print(token_ids)
+    # Decode the token IDs
+    decoded = tokenizer.decode(token_ids)
+    return tokenized, decoded
 
 
 def main():
@@ -88,7 +151,11 @@ def main():
     test_text = "He attended Fairfield Seminary and graduated from Union College with a degree in civil engineering in 1846, where he was a member of the Kappa Alpha Society and was elected to Phi Beta Kappa.  After college he taught school while studying law and attained admission to the bar in 1848.  He practiced in Fonda and Broadalbin, and relocated to Johnstown in 1862."
     encoded, decoded = test_tokenizer(model_prefix=model_prefix, test_text=test_text)
     print(f"Encoded: {encoded}")
-    print(f"Decoded: {decoded}")
+    print(f"Decoded: {decoded}<")
+    tokenizer_to_huggingface(model_prefix=model_prefix)
+    encoded, decoded = test_tokenizer_hf(model_prefix=model_prefix, test_text=test_text)
+    print(f"Encoded: {encoded}")
+    print(f"Decoded: {decoded}<")
 
 
 if __name__ == "__main__":
