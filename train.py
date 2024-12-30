@@ -22,25 +22,28 @@ def main():
     # ---------------------------------------
     # 2) Load your dataset
     # ---------------------------------------
+    full_dataset = load_dataset(
+        "wikipedia",
+        "20220301.en",
+        split="train",
+        streaming=True,  # Enable streaming mode
+        trust_remote_code=True,
+    )
+
     if debug:
-        # Enable streaming FOR DEBUGGING
-        dataset_stream = load_dataset(
-            "wikipedia",
-            "20220301.en",
-            split="train",
-            streaming=True,
-            trust_remote_code=True,
+        small_dataset = []
+        for i, sample in enumerate(full_dataset):
+            small_dataset.append(sample)
+            if i >= 100:
+                break
+        dataset = Dataset.from_dict(
+            {
+                key: [example[key] for example in small_dataset]
+                for key in small_dataset[0]
+            }
         )
-        small_stream = dataset_stream.take(
-            1000
-        )  # take first 1000 samples for debugging
-        # To "materialize" them in memory as a small list or dataset:
-        samples = list(small_stream)  # "materialize" 1000 items
-        dataset = Dataset.from_list(samples)
     else:
-        dataset = load_dataset(
-            "wikipedia", "20220301.en", split="train[:1%]", trust_remote_code=True
-        )
+        dataset = full_dataset
 
     # ---------------------------------------
     # 3. Create a ~14M GPT-NeoX config
@@ -62,27 +65,48 @@ def main():
     # ---------------------------------------
     # 5. Tokenize the dataset
     # ---------------------------------------
-    # Wikipedia data typically has a "text" field.
-    def tokenize_function(example):
-        return tokenizer(
-            example["text"],
-            truncation=True,
-            max_length=1024,  # or smaller to save memory
-        )
+    def preprocess_function(examples):
+        # split on \n\nSee also\n for wikipedia and remove the last part
+        examples["text"] = [
+            article.split("\n\nSee also\n")[0] for article in examples["text"]
+        ]
+        return examples
 
-    # We remove the original "text" column after tokenization
-    tokenized_dataset = dataset.map(
+    dataset = dataset.map(preprocess_function, batched=True)
+
+    block_size = 1024
+
+    def chunk_examples(batch, block_size=1024):
+        chunks = []
+        titles = []
+        ids = []
+        for sentences in batch["text"]:
+            chunk = [
+                sentences[i : i + block_size]
+                for i in range(0, len(sentences), block_size)
+            ]
+            chunks += chunk
+            titles += [batch["title"]] * len(chunk)
+            ids += [batch["id"]] * len(chunk)
+        return {"text": chunks, "title": titles, "id": ids}
+
+    chunk_dataset = dataset.map(
+        chunk_examples, batched=True, remove_columns=["text", "title", "url", "id"]
+    )
+
+    def tokenize_function(examples):
+        return tokenizer(examples["text"])
+
+    tokenized_dataset = chunk_dataset.map(
         tokenize_function,
-        batched=True,
-        num_proc=4,  # adjust if you have more or fewer CPU cores
-        remove_columns=["text"],
+        batched=False,
+        remove_columns=["text", "title", "id"],
     )
 
     # ---------------------------------------
     # 6. (Optional) Group texts into 1024-token chunks
     # ---------------------------------------
     # This can improve throughput by reducing the overhead from short sequences.
-    block_size = 1024
 
     def group_texts(examples):
         concatenated_ids = []
@@ -97,12 +121,12 @@ def main():
 
         return {"input_ids": result, "attention_mask": [[1] * block_size] * len(result)}
 
-    tokenized_dataset = tokenized_dataset.map(
-        group_texts,
-        batched=True,
-        batch_size=1000,
-        num_proc=4,
-    )
+    # tokenized_dataset = tokenized_dataset.map(
+    #     group_texts,
+    #     batched=True,
+    #     batch_size=1000,
+    #     num_proc=4,
+    # )
 
     # ---------------------------------------
     # 7. Create training arguments
@@ -121,21 +145,20 @@ def main():
         warmup_steps=500,
         weight_decay=0.01,
         bf16=False,  # set True if your GPU supports BF16
-        fp16=True,  # set True if your GPU supports FP16
+        fp16=False,  # set True if your GPU supports FP16
         gradient_accumulation_steps=4,
         report_to="none",  # or "tensorboard", "wandb", etc.
     )
+
+    # split the dataset into training and validation
+    tokenized_dataset = tokenized_dataset.train_test_split(test_size=0.1)
 
     # Create Trainer
     trainer = Trainer(
         model=model,
         args=training_args,
         train_dataset=tokenized_dataset["train"],
-        eval_dataset=(
-            tokenized_dataset["validation"]
-            if "validation" in tokenized_dataset
-            else None
-        ),
+        eval_dataset=tokenized_dataset["test"],
     )
 
     # ---------------------------------------
