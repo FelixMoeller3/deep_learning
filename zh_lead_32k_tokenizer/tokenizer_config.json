@@ -1,0 +1,70 @@
+{
+  "added_tokens_decoder": {
+    "1": {
+      "content": "<s>",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "2": {
+      "content": "</s>",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "32000": {
+      "content": "<BOS>",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "32001": {
+      "content": "<EOS>",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "32002": {
+      "content": "<UNK>",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "32003": {
+      "content": "<PAD>",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "32004": {
+      "content": "<MASK>",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    }
+  },
+  "bos_token": "<BOS>",
+  "clean_up_tokenization_spaces": false,
+  "eos_token": "<EOS>",
+  "mask_token": "<MASK>",
+  "model_max_length": 1024,
+  "pad_token": "<PAD>",
+  "padding_side": "right",
+  "tokenizer_class": "PreTrainedTokenizerFast",
+  "truncation_side": "left",
+  "unk_token": "<UNK>"
+}
