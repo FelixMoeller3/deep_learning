@@ -1,0 +1,101 @@
+##############  COLAB  #####################
+# from google.colab import drive
+# drive.mount('/content/drive')
+
+# !pip install datasets
+# !pip install mwparserfromhell
+############################################
+
+# so I have this working fine, but gets stuck in the train-test split
+# test, save model too. english, suffixing. RUNNING HERE
+# let it start training and then see, if so then adjust train size, also eval strategy and add the real tokenizer and so on
+import os
+from datasets import load_dataset, Dataset, DatasetDict
+from transformers import (
+    GPTNeoXConfig,
+    GPTNeoXForCausalLM,
+    PreTrainedTokenizerFast,
+    Trainer,
+    TrainingArguments,
+    DataCollatorForLanguageModeling,
+)
+
+debug = True
+PREFIX = "/content/drive/MyDrive/deep_learning/"
+
+TOKENIZER = "trail"
+LANGUAGE = "fi"
+TOKENIZER_PATH = (
+    PREFIX + f"{LANGUAGE}_{TOKENIZER}_tokenizer"
+)  # CHECK for correct tokenizer
+DATASET_PATH = (
+    PREFIX + f"{LANGUAGE}_raw_ready_to_train_{TOKENIZER}"
+)  # CHECK for correct dataset
+
+# 1) Load your SentencePiece (or other) tokenizer
+tokenizer = PreTrainedTokenizerFast.from_pretrained(TOKENIZER_PATH)
+
+# 2) Load a small portion of Wikipedia for debugging
+dataset = Dataset.load_from_disk(DATASET_PATH)  # CHECK whether to use DatasetDict
+if debug:
+    small_stream = dataset.select(range(int(100)))
+    samples = list(small_stream)
+    dataset = Dataset.from_list(samples)
+
+# 3) Create a ~14M param GPT-NeoX config
+config = GPTNeoXConfig(
+    vocab_size=tokenizer.vocab_size,
+    hidden_size=256,  # smaller hidden dim
+    num_hidden_layers=6,  # fewer layers
+    num_attention_heads=8,
+    intermediate_size=1024,
+    max_position_embeddings=2048,
+)
+
+# 4) Build a GPT-NeoX model (similar to a Pythia-style model)
+model = GPTNeoXForCausalLM(config)
+
+# 5)
+chunked_dataset = dataset
+
+# 7) Use a DataCollator that sets 'labels' for causal LM
+data_collator = DataCollatorForLanguageModeling(
+    tokenizer=tokenizer,
+    mlm=False,  # for causal LM
+)
+
+# 8) Define training arguments
+training_args = TrainingArguments(
+    output_dir=PREFIX
+    + f"{LANGUAGE}/pythia-14m-checkpoints-{TOKENIZER}",  # CHECK for correct path
+    overwrite_output_dir=True,
+    num_train_epochs=1,  # ADJUST EPOCHS HERE
+    per_device_train_batch_size=4,
+    evaluation_strategy="no",
+    eval_steps=1000,
+    save_steps=1000,
+    logging_steps=100,  # change to 200 or so
+    learning_rate=2e-4,
+    warmup_steps=500,
+    weight_decay=0.01,
+    bf16=False,
+    fp16=True,  # CHECK true for GPU
+    gradient_accumulation_steps=4,
+    report_to="tensorboard",
+)
+
+# 9) Create Trainer
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=chunked_dataset,  # CHECK if using DatasetDict, select ["train"]
+    eval_dataset=None,  # CHECK consider using the test set of the dataset
+    data_collator=data_collator,
+)
+
+# 10) Train
+trainer.train()
+
+# 11) (Optional) Save the final model + tokenizer explicitly
+trainer.save_model(PREFIX + f"{LANGUAGE}/model_{TOKENIZER}")  # CHECK for correct path
+# tokenizer.save_pretrained("my-final-checkpoint")
