@@ -166,3 +166,9 @@ cython_debug/
 *.egg-info
 pixi.lock
 pixi.toml
+
+# datasets
+datasets/
+
+# macos
+.DS_Store
