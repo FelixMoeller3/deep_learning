@@ -1,4 +1,4 @@
-#test
+###### DO NOT USE THIS TEMPLATE FOR TRAINING ######
 import os
 from datasets import load_dataset, Dataset
 from transformers import (
