@@ -64,7 +64,7 @@ data_collator = DataCollatorForLanguageModeling(
 # 8) Define training arguments
 training_args = TrainingArguments(
     output_dir=PREFIX
-    + f"{LANGUAGE}/pythia-14m-checkpoints-{TOKENIZER}",  # CHECK for correct path
+    + f"{LANGUAGE}/model_{TOKENIZER}_checkpoints",  # CHECK for correct path
     overwrite_output_dir=True,
     num_train_epochs=1,  # ADJUST EPOCHS HERE
     per_device_train_batch_size=4,
