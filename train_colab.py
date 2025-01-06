@@ -20,7 +20,7 @@ from transformers import (
     DataCollatorForLanguageModeling,
 )
 
-debug = True
+debug = False
 PREFIX = "/content/drive/MyDrive/deep_learning/"
 
 TOKENIZER = "trail"
@@ -36,9 +36,9 @@ DATASET_PATH = (
 tokenizer = PreTrainedTokenizerFast.from_pretrained(TOKENIZER_PATH)
 
 # 2) Load a small portion of Wikipedia for debugging
-dataset = Dataset.load_from_disk(DATASET_PATH)  # CHECK whether to use DatasetDict
+dataset = DatasetDict.load_from_disk(DATASET_PATH)  # CHECK whether to use DatasetDict
 if debug:
-    small_stream = dataset.select(range(int(100)))
+    small_stream = dataset["train"].select(range(int(100)))
     samples = list(small_stream)
     dataset = Dataset.from_list(samples)
 
@@ -55,9 +55,6 @@ config = GPTNeoXConfig(
 # 4) Build a GPT-NeoX model (similar to a Pythia-style model)
 model = GPTNeoXForCausalLM(config)
 
-# 5)
-chunked_dataset = dataset
-
 # 7) Use a DataCollator that sets 'labels' for causal LM
 data_collator = DataCollatorForLanguageModeling(
     tokenizer=tokenizer,
@@ -71,7 +68,7 @@ training_args = TrainingArguments(
     overwrite_output_dir=True,
     num_train_epochs=1,  # ADJUST EPOCHS HERE
     per_device_train_batch_size=4,
-    evaluation_strategy="no",
+    evaluation_strategy="steps",
     eval_steps=1000,
     save_steps=1000,
     logging_steps=100,  # change to 200 or so
@@ -88,8 +85,8 @@ training_args = TrainingArguments(
 trainer = Trainer(
     model=model,
     args=training_args,
-    train_dataset=chunked_dataset,  # CHECK if using DatasetDict, select ["train"]
-    eval_dataset=None,  # CHECK consider using the test set of the dataset
+    train_dataset=dataset["train"],  # CHECK if using DatasetDict, select ["train"]
+    eval_dataset=dataset["test"],  # CHECK consider using the test set of the dataset
     data_collator=data_collator,
 )
 
