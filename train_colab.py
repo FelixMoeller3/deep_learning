@@ -21,16 +21,12 @@ from transformers import (
 )
 
 debug = False
-PREFIX = "/content/drive/MyDrive/deep_learning/"
+PREFIX = "/content/drive/Shareddrives/DeepLearning/"
 
 TOKENIZER = "trail"
 LANGUAGE = "fi"
-TOKENIZER_PATH = (
-    PREFIX + f"{LANGUAGE}_{TOKENIZER}_tokenizer"
-)  # CHECK for correct tokenizer
-DATASET_PATH = (
-    PREFIX + f"{LANGUAGE}_raw_ready_to_train_{TOKENIZER}"
-)  # CHECK for correct dataset
+TOKENIZER_PATH = f"{PREFIX}Tokenizers/{LANGUAGE}/{LANGUAGE}_{TOKENIZER}_tokenizer"  # CHECK for correct tokenizer
+DATASET_PATH = f"{PREFIX}Datasets/{LANGUAGE}/{LANGUAGE}_{TOKENIZER}_ready_to_train"  # CHECK for correct dataset
 
 # 1) Load your SentencePiece (or other) tokenizer
 tokenizer = PreTrainedTokenizerFast.from_pretrained(TOKENIZER_PATH)
@@ -63,8 +59,7 @@ data_collator = DataCollatorForLanguageModeling(
 
 # 8) Define training arguments
 training_args = TrainingArguments(
-    output_dir=PREFIX
-    + f"{LANGUAGE}/model_{TOKENIZER}_checkpoints",  # CHECK for correct path
+    output_dir=f"{PREFIX}Models/{LANGUAGE}/model_{TOKENIZER}_checkpoints",  # CHECK for correct path
     overwrite_output_dir=True,
     num_train_epochs=1,  # ADJUST EPOCHS HERE
     per_device_train_batch_size=4,
@@ -94,5 +89,7 @@ trainer = Trainer(
 trainer.train()
 
 # 11) (Optional) Save the final model + tokenizer explicitly
-trainer.save_model(PREFIX + f"{LANGUAGE}/model_{TOKENIZER}")  # CHECK for correct path
+trainer.save_model(
+    f"{PREFIX}Models/{LANGUAGE}/model_{TOKENIZER}"
+)  # CHECK for correct path
 # tokenizer.save_pretrained("my-final-checkpoint")
