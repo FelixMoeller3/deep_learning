@@ -64,7 +64,7 @@ training_args = TrainingArguments(
     overwrite_output_dir=True,
     num_train_epochs=1,  # ADJUST EPOCHS HERE
     per_device_train_batch_size=4,
-    evaluation_strategy="steps",
+    evaluation_strategy="no",
     eval_steps=1000,
     save_steps=1000,
     logging_steps=100,  # change to 200 or so
@@ -82,7 +82,7 @@ trainer = Trainer(
     model=model,
     args=training_args,
     train_dataset=dataset["train"],  # CHECK if using DatasetDict, select ["train"]
-    eval_dataset=dataset["test"],  # CHECK consider using the test set of the dataset
+    eval_dataset=None,  # CHECK consider using the test set of the dataset
     data_collator=data_collator,
 )
 
