@@ -65,7 +65,8 @@ def preprocess_function(examples):
     return examples
 
 
-dataset = dataset.map(preprocess_function, batched=True)
+# dataset = dataset.map(preprocess_function, batched=True)
+# I realised this only makes sense for english
 
 
 # 5) Tokenize the dataset
