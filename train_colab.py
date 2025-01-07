@@ -6,6 +6,25 @@
 # !pip install mwparserfromhell
 ############################################
 
+###############  SEED  #####################
+import random
+import numpy as np
+import torch
+from transformers import set_seed
+
+SEED = 42
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed(SEED)
+    torch.cuda.manual_seed_all(SEED)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+set_seed(SEED)
+############################################
+
+
 # so I have this working fine, but gets stuck in the train-test split
 # test, save model too. english, suffixing. RUNNING HERE
 # let it start training and then see, if so then adjust train size, also eval strategy and add the real tokenizer and so on
@@ -60,7 +79,7 @@ data_collator = DataCollatorForLanguageModeling(
 
 # 8) Define training arguments
 training_args = TrainingArguments(
-    output_dir=f"{PREFIX}Models/{LANGUAGE}/model_{MODEL_SIZE}_{TOKENIZER}_checkpoints",  # CHECK for correct path
+    output_dir=f"{PREFIX}Models/{LANGUAGE}/model_{MODEL_SIZE}_{TOKENIZER}_{SEED}_checkpoints",  # CHECK for correct path
     overwrite_output_dir=True,
     num_train_epochs=1,  # ADJUST EPOCHS HERE
     per_device_train_batch_size=4,
@@ -91,6 +110,6 @@ trainer.train()
 
 # 11) (Optional) Save the final model + tokenizer explicitly
 trainer.save_model(
-    f"{PREFIX}Models/{LANGUAGE}/model_{MODEL_SIZE}_{TOKENIZER}"
+    f"{PREFIX}Models/{LANGUAGE}/model_{MODEL_SIZE}_{TOKENIZER}_{SEED}"
 )  # CHECK for correct path
 # tokenizer.save_pretrained("my-final-checkpoint")
