@@ -121,4 +121,4 @@ trainer.train()
 trainer.save_model(
     f"{PREFIX}Models/{LANGUAGE}/model_{MODEL_SIZE}_{TOKENIZER}_{SEED}"
 )  # CHECK for correct path
-# tokenizer.save_pretrained("my-final-checkpoint")
+wandb.finish()
