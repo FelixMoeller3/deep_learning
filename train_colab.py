@@ -83,7 +83,13 @@ data_collator = DataCollatorForLanguageModeling(
 # ------ Initialize W&B project (optional, but recommended) ------
 wandb.init(
     project="deeplearning",  # change to your W&B project name
-    name=f"model_{LANGUAGE}_{MODEL_SIZE}_{TOKENIZER}_{SEED}"   # name for your specific run
+    name=f"model_{LANGUAGE}_{MODEL_SIZE}_{TOKENIZER}_{SEED}",  # name for your specific run
+    config={
+        "language": LANGUAGE,
+        "model_size": MODEL_SIZE,
+        "tokenizer": TOKENIZER,
+        "seed": SEED,
+    },
 )
 # 8) Define training arguments
 training_args = TrainingArguments(
@@ -102,7 +108,7 @@ training_args = TrainingArguments(
     fp16=True,  # CHECK true for GPU
     gradient_accumulation_steps=4,
     report_to=["wandb", "tensorboard"],
-    run_name=f"model_{LANGUAGE}_{MODEL_SIZE}_{TOKENIZER}_{SEED}"
+    run_name=f"model_{LANGUAGE}_{MODEL_SIZE}_{TOKENIZER}_{SEED}",
 )
 
 # 9) Create Trainer
