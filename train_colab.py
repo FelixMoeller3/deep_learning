@@ -1,9 +1,12 @@
 ##############  COLAB  #####################
+# !pip install mwparserfromhell
+# !pip install datasets
+# !pip install wandb
+# import wandb
+# import os
+# os.environ["WANDB_API_KEY"] = "9c64c54fc2d4f000d2844311794a8e230e2d6454"
 # from google.colab import drive
 # drive.mount('/content/drive')
-
-# !pip install datasets
-# !pip install mwparserfromhell
 ############################################
 
 ###############  SEED  #####################
@@ -12,7 +15,7 @@ import numpy as np
 import torch
 from transformers import set_seed
 
-SEED = 42
+SEED = 356
 random.seed(SEED)
 np.random.seed(SEED)
 torch.manual_seed(SEED)
@@ -42,7 +45,7 @@ from transformers import (
 debug = False
 PREFIX = "/content/drive/Shareddrives/DeepLearning/"
 
-TOKENIZER = "trail"
+TOKENIZER = "lead"
 LANGUAGE = "fi"
 MODEL_SIZE = "14m"  # 14m, 60m
 TOKENIZER_PATH = f"{PREFIX}Tokenizers/{LANGUAGE}/{LANGUAGE}_{TOKENIZER}_tokenizer"  # CHECK for correct tokenizer
@@ -77,11 +80,16 @@ data_collator = DataCollatorForLanguageModeling(
     mlm=False,  # for causal LM
 )
 
+# ------ Initialize W&B project (optional, but recommended) ------
+wandb.init(
+    project="deeplearning",  # change to your W&B project name
+    name=f"model_{MODEL_SIZE}_{TOKENIZER}_{SEED}"   # name for your specific run
+)
 # 8) Define training arguments
 training_args = TrainingArguments(
     output_dir=f"{PREFIX}Models/{LANGUAGE}/model_{MODEL_SIZE}_{TOKENIZER}_{SEED}_checkpoints",  # CHECK for correct path
     overwrite_output_dir=True,
-    num_train_epochs=1,  # ADJUST EPOCHS HERE
+    num_train_epochs=0.42,  # ADJUST EPOCHS HERE
     per_device_train_batch_size=4,
     evaluation_strategy="no",
     eval_steps=1000,
@@ -93,7 +101,8 @@ training_args = TrainingArguments(
     bf16=False,
     fp16=True,  # CHECK true for GPU
     gradient_accumulation_steps=4,
-    report_to="tensorboard",
+    report_to=["wandb", "tensorboard"],
+    run_name=f"model_{MODEL_SIZE}_{TOKENIZER}_{SEED}"
 )
 
 # 9) Create Trainer
