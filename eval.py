@@ -1,153 +1,126 @@
+################### COLAB ###################
+# !pip install datasets
+# !pip install mwparserfromhell
+# !pip install evaluate
+# from google.colab import drive
+# drive.mount('/content/drive')
+################### COLAB ###################
+
 import os
-from datasets import load_dataset, Dataset
+from datasets import load_dataset, Dataset, DatasetDict
 from transformers import (
     GPTNeoXConfig,
     GPTNeoXForCausalLM,
     PreTrainedTokenizerFast,
     Trainer,
     TrainingArguments,
+    DataCollatorForLanguageModeling,
 )
-from sklearn.metrics import f1_score,accuracy_score
+import torch
+import evaluate
+import numpy as np
+from sklearn.metrics import accuracy_score, f1_score
 
+# so I have this working fine, but gets stuck in the train-test split
+# test, save model too. english, suffixing. RUNNING HERE
+# let it start training and then see, if so then adjust train size, also eval strategy and add the real tokenizer and so on
 
+debug = False
+PREFIX = "/content/drive/Shareddrives/DeepLearning/"
 
+SEED = '9336'
+TOKENIZER = "lead"
+LANGUAGE = "fi"
+MODEL_SIZE = "14m"  # 14m, 60m
+TOKENIZER_PATH = f"{PREFIX}Tokenizers/{LANGUAGE}/{LANGUAGE}_{TOKENIZER}_tokenizer"  # CHECK for correct tokenizer
+DATASET_PATH = f"{PREFIX}Datasets/{LANGUAGE}/{LANGUAGE}_{TOKENIZER}_ready_to_train"  # CHECK for correct dataset
 
-full_dataset = load_dataset(
-        "wikipedia",
-        "20220301.en",
-        split="train",
-        streaming=True,  # Enable streaming mode
-        trust_remote_code=True,
-    )
+# 1) Load your SentencePiece (or other) tokenizer
+tokenizer = PreTrainedTokenizerFast.from_pretrained(TOKENIZER_PATH)
 
-small_dataset = []
-for i, sample in enumerate(full_dataset):
-    small_dataset.append(sample)
-    if i >= 100:
-        break
-dataset = Dataset.from_dict(
-    {
-        key: [example[key] for example in small_dataset]
-        for key in small_dataset[0]
-    }
-)
+# 2) Load a small portion of Wikipedia for debugging
+dataset = DatasetDict.load_from_disk(DATASET_PATH)  # CHECK whether to use DatasetDict
+if debug:
+    small_stream = dataset["train"].select(range(int(100)))
+    samples = list(small_stream)
+    dataset = Dataset.from_list(samples)
 
-tokenizer = PreTrainedTokenizerFast.from_pretrained("./ConvertedTokenizer")
-
+# 3) Create a ~14M param GPT-NeoX config
 config = GPTNeoXConfig(
     vocab_size=tokenizer.vocab_size,
-    hidden_size=256,
-    num_hidden_layers=6,
+    hidden_size=256,  # smaller hidden dim
+    num_hidden_layers=6,  # fewer layers
     num_attention_heads=8,
     intermediate_size=1024,
     max_position_embeddings=2048,
 )
 
-# ---------------------------------------
-# 4. Build a GPT-NeoX model from scratch
-# ---------------------------------------
-model = GPTNeoXForCausalLM(config)
-#model.forward()
 
-def preprocess_function(examples):
-    # split on \n\nSee also\n for wikipedia and remove the last part
-    examples["text"] = [
-        article.split("\n\nSee also\n")[0] for article in examples["text"]
-    ]
-    return examples
+# 4) Build a GPT-NeoX model (similar to a Pythia-style model)
+model = GPTNeoXForCausalLM.from_pretrained(f"{PREFIX}Models/{LANGUAGE}/model_{MODEL_SIZE}_{TOKENIZER}_{SEED}")
+#model = GPTNeoXForCausalLM(config)
 
-dataset = dataset.map(preprocess_function, batched=True)
-
-block_size = 1024
-
-def chunk_examples(batch, block_size=1024):
-    chunks = []
-    titles = []
-    ids = []
-    for sentences in batch["text"]:
-        chunk = [
-            sentences[i : i + block_size]
-            for i in range(0, len(sentences), block_size)
-        ]
-        chunks += chunk
-        titles += [batch["title"]] * len(chunk)
-        ids += [batch["id"]] * len(chunk)
-    return {"text": chunks, "title": titles, "id": ids}
-
-chunk_dataset = dataset.map(
-    chunk_examples, batched=True, remove_columns=["text", "title", "url", "id"]
+# 7) Use a DataCollator that sets 'labels' for causal LM
+data_collator = DataCollatorForLanguageModeling(
+    tokenizer=tokenizer,
+    mlm=False,  # for causal LM
 )
 
-def tokenize_function(examples):
-    return tokenizer(examples["text"])
-
-tokenized_dataset = chunk_dataset.map(
-    tokenize_function,
-    batched=False,
-    remove_columns=["text", "title", "id"],
-)
-
-# ---------------------------------------
-# 6. (Optional) Group texts into 1024-token chunks
-# ---------------------------------------
-# This can improve throughput by reducing the overhead from short sequences.
-
-def group_texts(examples):
-    concatenated_ids = []
-    for ids in examples["input_ids"]:
-        concatenated_ids.extend(ids)
-
-    # Drop the remainder so everything is a full block
-    total_length = (len(concatenated_ids) // block_size) * block_size
-    result = []
-    for i in range(0, total_length, block_size):
-        result.append(concatenated_ids[i : i + block_size])
-
-    return {"input_ids": result, "attention_mask": [[1] * block_size] * len(result)}
-
-# tokenized_dataset = tokenized_dataset.map(
-#     group_texts,
-#     batched=True,
-#     batch_size=1000,
-#     num_proc=4,
-# )
-
-# ---------------------------------------
-# 7. Create training arguments
-# ---------------------------------------
+# 8) Define training arguments
 training_args = TrainingArguments(
-    output_dir="path/to/checkpoints",
+    output_dir=f"{PREFIX}Models/{LANGUAGE}/model_{MODEL_SIZE}_{TOKENIZER}_{SEED}_checkpoints",  # CHECK for correct path
     overwrite_output_dir=True,
-    num_train_epochs=3,  # adjust as desired
-    per_device_train_batch_size=4,  # depends on your GPU memory
-    per_device_eval_batch_size=4,
-    evaluation_strategy="steps",
+    num_train_epochs=1,  # ADJUST EPOCHS HERE
+    per_device_train_batch_size=4,
+    evaluation_strategy="no",
     eval_steps=1000,
     save_steps=1000,
-    logging_steps=200,
+    logging_steps=100,  # change to 200 or so
     learning_rate=2e-4,
     warmup_steps=500,
     weight_decay=0.01,
-    bf16=False,  # set True if your GPU supports BF16
-    fp16=False,  # set True if your GPU supports FP16
+    bf16=False,
+    fp16=True,  # CHECK true for GPU
     gradient_accumulation_steps=4,
-    report_to="none",  # or "tensorboard", "wandb", etc.
+    report_to="tensorboard",
 )
 
-# split the dataset into training and validation
-tokenized_dataset = tokenized_dataset.train_test_split(test_size=0.1)
+def preprocess_logits_for_metrics(logits, labels):
+    """
+    Original Trainer may have a memory leak. 
+    This is a workaround to avoid storing too many tensors that are not needed.
+    """
+    pred_ids = torch.argmax(logits, dim=-1)
+    return pred_ids
 
-# Create Trainer
+def compute_metrics(eval_pred):
+    "Calculate metrics and accuracy"
+    predictions, labels = eval_pred
+    predictions = predictions.flatten()
+    labels = labels.flatten()
+    # Berechnung der Metriken
+    accuracy = accuracy_score(labels, predictions)
+    f1 = f1_score(labels, predictions, average="weighted")
+
+    return {
+        "accuracy": accuracy,
+        "f1": f1,
+    }
+
+# 9) Create Trainer
 trainer = Trainer(
     model=model,
     args=training_args,
-    train_dataset=tokenized_dataset["train"],
-    eval_dataset=tokenized_dataset["test"],
+    train_dataset=dataset["train"],  # CHECK if using DatasetDict, select ["train"]
+    eval_dataset=dataset["test"],  # CHECK consider using the test set of the dataset
+    data_collator=data_collator,
+    compute_metrics=compute_metrics,
+    preprocess_logits_for_metrics=preprocess_logits_for_metrics,
 )
 
-# ---------------------------------------
-# 8. Train the model
-# ---------------------------------------
-#trainer.train()
-trainer.evaluate()
-print(tokenized_dataset["test"][0].keys())
+# 10) Train
+eval_results = trainer.evaluate()
+eval_results['eval_perplexity'] = np.exp(eval_results['eval_loss'])
+print(eval_results)
+# 11) (Optional) Save the final model + tokenizer explicitly
+
