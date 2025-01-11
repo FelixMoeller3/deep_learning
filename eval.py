@@ -21,6 +21,8 @@ import evaluate
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score
 
+torch.cuda.empty_cache()
+
 # so I have this working fine, but gets stuck in the train-test split
 # test, save model too. english, suffixing. RUNNING HERE
 # let it start training and then see, if so then adjust train size, also eval strategy and add the real tokenizer and so on
@@ -28,7 +30,7 @@ from sklearn.metrics import accuracy_score, f1_score
 debug = False
 PREFIX = "/content/drive/Shareddrives/DeepLearning/"
 
-SEED = '9336'
+SEED = "9336"
 TOKENIZER = "lead"
 LANGUAGE = "fi"
 MODEL_SIZE = "14m"  # 14m, 60m
@@ -57,8 +59,10 @@ config = GPTNeoXConfig(
 
 
 # 4) Build a GPT-NeoX model (similar to a Pythia-style model)
-model = GPTNeoXForCausalLM.from_pretrained(f"{PREFIX}Models/{LANGUAGE}/model_{MODEL_SIZE}_{TOKENIZER}_{SEED}")
-#model = GPTNeoXForCausalLM(config)
+model = GPTNeoXForCausalLM.from_pretrained(
+    f"{PREFIX}Models/{LANGUAGE}/model_{MODEL_SIZE}_{TOKENIZER}_{SEED}"
+)
+# model = GPTNeoXForCausalLM(config)
 
 # 7) Use a DataCollator that sets 'labels' for causal LM
 data_collator = DataCollatorForLanguageModeling(
@@ -85,27 +89,92 @@ training_args = TrainingArguments(
     report_to="tensorboard",
 )
 
+
 def preprocess_logits_for_metrics(logits, labels):
-    """
-    Original Trainer may have a memory leak. 
-    This is a workaround to avoid storing too many tensors that are not needed.
-    """
-    pred_ids = torch.argmax(logits, dim=-1)
-    return pred_ids
+    # logits shape: (batch, seq_len, vocab_size)
+    # gather top-10 indices
+    top10_ids = torch.topk(logits, k=10, dim=-1).indices  # (batch, seq_len, 10)
+    return top10_ids
+
 
 def compute_metrics(eval_pred):
-    "Calculate metrics and accuracy"
-    predictions, labels = eval_pred
-    predictions = predictions.flatten()
-    labels = labels.flatten()
-    # Berechnung der Metriken
-    accuracy = accuracy_score(labels, predictions)
-    f1 = f1_score(labels, predictions, average="weighted")
+    """
+    Calculate accuracy, weighted F1, top-5 accuracy, top-10 accuracy,
+    type-token ratio (TTR), and average subword length from predictions.
+    """
+    top10_ids, labels = eval_pred  # shape: (batch_size, seq_len, vocab_size)
+
+    # 1) Convert logits to predictions
+    predictions = top10_ids[..., 0]  # shape: (batch_size, seq_len)
+
+    # 2) Flatten predictions & labels for normal accuracy / F1
+    flattened_preds = predictions.flatten()
+    flattened_labels = labels.flatten()
+
+    # Basic Metrics: Accuracy & F1
+    accuracy = accuracy_score(flattened_labels, flattened_preds)
+    f1 = f1_score(flattened_labels, flattened_preds, average="weighted")
+
+    # 3) Compute Top-5 and Top-10 accuracy
+    #    a) Sort along the vocab dimension; b) extract the last 5 or 10
+    top5_ids = top10_ids[..., :5]  # shape: (batch_size, seq_len, 5)
+
+    # We'll iterate only over the same valid positions we used above
+    total_valid = len(flattened_labels)
+    top5_correct = 0
+    top10_correct = 0
+
+    # We need to match the batch/seq positions back to the flattened valid indices
+    # One approach is to reshape again and step carefully.
+    # Another approach is to do everything in a 2D loop.
+    # Here, let's do a 2D loop for clarity:
+    b_sz, seq_len = predictions.shape
+    idx = 0
+    for b in range(b_sz):
+        for s in range(seq_len):
+            if labels[b, s] == -100:  # ignore
+                continue
+            label_id = labels[b, s]
+            # check top-5
+            if label_id in top5_ids[b, s]:
+                top5_correct += 1
+            # check top-10
+            if label_id in top10_ids[b, s]:
+                top10_correct += 1
+            idx += 1  # index for valid positions
+
+    top5_acc = top5_correct / total_valid if total_valid > 0 else 0.0
+    top10_acc = top10_correct / total_valid if total_valid > 0 else 0.0
+
+    # 4) Type-Token Ratio (TTR) and Average Subword Length
+    #    We compute these from the predicted tokens.
+    unique_pred_ids = np.unique(flattened_preds)
+    ttr = (
+        len(unique_pred_ids) / float(len(flattened_preds))
+        if len(flattened_preds) > 0
+        else 0.0
+    )
+
+    # For average subword length, decode each predicted token (careful with large sets!)
+    subword_lengths = []
+    for pred_id in flattened_preds:
+        # Convert ID back to the subword string
+        token_str = tokenizer.decode([pred_id], skip_special_tokens=True)
+        subword_lengths.append(len(token_str))
+    avg_subword_length = np.mean(subword_lengths) if subword_lengths else 0.0
 
     return {
         "accuracy": accuracy,
         "f1": f1,
+        "top5_accuracy": top5_acc,
+        "top10_accuracy": top10_acc,
+        "type_token_ratio": ttr,
+        "avg_subword_length": avg_subword_length,
     }
+
+
+model.eval()
+torch.no_grad()
 
 # 9) Create Trainer
 trainer = Trainer(
@@ -118,9 +187,9 @@ trainer = Trainer(
     preprocess_logits_for_metrics=preprocess_logits_for_metrics,
 )
 
+
 # 10) Train
 eval_results = trainer.evaluate()
-eval_results['eval_perplexity'] = np.exp(eval_results['eval_loss'])
+eval_results["eval_perplexity"] = np.exp(eval_results["eval_loss"])
 print(eval_results)
 # 11) (Optional) Save the final model + tokenizer explicitly
-
