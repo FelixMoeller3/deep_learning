@@ -127,7 +127,6 @@ def compute_metrics(eval_pred):
     # 4) Type-Token Ratio (TTR) and Average Subword Length
     #    We compute these from the tokens in the original dataset.
     ttr = 0
-    print("Labels shape",labels.shape)
     for sequence in labels:
         ttr+= len(np.unique(sequence))
     ttr/= SEQUENCE_LENGTH*len(labels)
