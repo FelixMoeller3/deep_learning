@@ -109,8 +109,6 @@ def load_results():
     results = pd.read_csv(f"{dr}/results.csv")
     results = results.dropna(subset=[results.columns[0]])
     # Language,Tokenizer,Model Size,Seed,Eval Loss,Accuracy,F1,Perplexity,Top5 Accuracy,Top10 Accuracy,TTR,Avg Token Length
-    # Finnish,Trailing,14m,9336,4.765193939,0.001906078923,0.001199148164,117.3538746,0.00589216469,0.01230434985,0.599566981,5.6199375
-    # Finnish,Trailing,14m,42,4.223970413,0.001371014214,0.0009371384652,68.30414229,,,,
     results = add_language_code(results)
     results = add_morphology(results)
     return results
