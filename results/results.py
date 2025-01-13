@@ -318,9 +318,71 @@ def boxplots_60m_perplexity(results):
     plt.savefig(f"{DIR}/boxplot_perplexity_60m.png")
 
 
+def avg_token_length_vs_ttr(results):
+    data = results.dropna(subset=["TTR", "Avg Token Length"])
+    # group by language and tokenizer
+    data = data.groupby(["Language", "Tokenizer"]).agg(
+        {"Avg Token Length": "mean", "TTR": "mean"}
+    )
+    data = data.reset_index()
+
+    fig, ax = plt.subplots()
+    for (lang, tokenizer), group in data.groupby(["Language", "Tokenizer"]):
+        sns.scatterplot(
+            x=group["Avg Token Length"],
+            y=group["TTR"],
+            marker=MARKER_MAP[lang],
+            color=COLOR_MAP[tokenizer],
+            s=100,
+            label=f"{lang} ({tokenizer})",
+            ax=ax,
+        )
+
+    ax.set_xlabel("Average Token Length")
+    ax.set_ylabel("Type-Token Ratio")
+
+    # Split the legend into two: one for languages and one for tokenizers
+    language_handles = [
+        plt.Line2D(
+            [0],
+            [0],
+            marker=MARKER_MAP[lang],
+            color="w",
+            markerfacecolor="k",
+            markersize=10,
+        )
+        for lang in MARKER_MAP.keys()
+    ]
+    language_labels = list(MARKER_MAP.keys())
+    tokenizer_handles = [
+        plt.Line2D([0], [0], color=color) for color in COLOR_MAP.values()
+    ]
+    tokenizer_labels = list(COLOR_MAP.keys())
+
+    first_legend = ax.legend(
+        language_handles,
+        language_labels,
+        title="Language",
+        loc="upper right",
+        bbox_to_anchor=(0.4, 1),
+    )
+    ax.add_artist(first_legend)
+    ax.legend(
+        tokenizer_handles,
+        tokenizer_labels,
+        title="Tokenizer",
+        loc="upper right",
+        bbox_to_anchor=(0.2, 1),
+    )
+
+    plt.tight_layout()
+    plt.savefig(f"{DIR}/avg_token_length_vs_ttr.png")
+
+
 def main():
     results = load_results()
     df = get_wandb_results()
+    avg_token_length_vs_ttr(results)
     mophology_vs_top10accuracy(results, model="14m")
     mophology_vs_top10accuracy(results, model="60m")
     boxplots_14m_perplexity(results)
