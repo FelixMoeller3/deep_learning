@@ -3,6 +3,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
+import seaborn as sns
 
 DIR = "results"
 plt.rcParams["figure.figsize"] = [15, 10]
@@ -34,8 +35,8 @@ def add_language_code(results):
 def add_morphology(results):
     "A language is either prefixing or suffixing"
     morphology = {
-        "fi": 2,
         "en": 2,
+        "fi": 2,
         "sw": -1,
         "zh": 0,
     }
@@ -66,7 +67,7 @@ def avg_and_var_across_seeds(results, metric, groupby=None):
     return grouped
 
 
-def boxplots_14m_perplexity(results):
+def original_boxplots_14m_perplexity(results):
     fig, ax = plt.subplots()
     data = results[results["Model Size"] == "14m"]
     data = data.dropna(subset=["Perplexity"])
@@ -81,7 +82,76 @@ def boxplots_14m_perplexity(results):
     plt.savefig(f"{DIR}/boxplot_perplexity_14m.png")
 
 
+def boxplots_14m_perplexity(results):
+    # Filter for 14m model size and drop missing values
+    data = results[results["Model Size"] == "14m"].dropna(subset=["Perplexity"])
+
+    # Set up the plot
+    plt.figure(figsize=(12, 8))
+
+    # Create a boxplot with Seaborn for better flexibility
+    sns.boxplot(
+        data=data,
+        x="Language",
+        y="Perplexity",
+        hue="Tokenizer",
+        dodge=True,  # Separate bars for each tokenizer
+        medianprops=dict(color="black", linewidth=1.5),
+    )
+
+    # Rotate the tokenizer labels for readability
+    plt.xticks(rotation=0)
+    plt.title("")
+    plt.ylabel("Perplexity")
+    plt.xlabel("Language")
+
+    # Format legend for better readability
+    plt.legend(title="Tokenizer", loc="upper left")
+
+    # Adjust layout
+    plt.tight_layout()
+
+    # Save the plot
+    plt.savefig("boxplot_perplexity_14m.png")
+    plt.show()
+
+
+def boxplots_60m_perplexity(results):
+    # Filter for 14m model size and drop missing values
+    data = results[results["Model Size"] == "60m"].dropna(subset=["Perplexity"])
+
+    # Set up the plot
+    plt.figure(figsize=(12, 8))
+
+    # Create a boxplot with Seaborn for better flexibility
+    sns.boxplot(
+        data=data,
+        x="Language",
+        y="Perplexity",
+        hue="Tokenizer",
+        dodge=True,  # Separate bars for each tokenizer
+        medianprops=dict(color="black", linewidth=1.5),
+    )
+
+    # Rotate the tokenizer labels for readability
+    plt.xticks(rotation=0)
+    plt.title("")
+    plt.ylabel("Perplexity")
+    plt.xlabel("Language")
+
+    # Format legend for better readability
+    plt.legend(title="Tokenizer", loc="upper left")
+
+    # Adjust layout
+    plt.tight_layout()
+
+    # Save the plot
+    plt.savefig("boxplot_perplexity_60m.png")
+    plt.show()
+
+
 if __name__ == "__main__":
     results = load_results()
     grouped = avg_and_var_across_seeds(results, "Eval Loss")
     boxplots_14m_perplexity(results)
+    boxplots_60m_perplexity(results)
