@@ -81,7 +81,69 @@ def boxplots_14m_perplexity(results):
     plt.savefig(f"{DIR}/boxplot_perplexity_14m.png")
 
 
+def mophology_vs_top10accuracy(results):
+    model = "60m"
+    data = results.dropna(subset=["Top10 Accuracy"])[results["Model Size"] == model]
+    color_map = {"Leading": "tab:blue", "Trailing": "tab:orange"}
+    marker_map = {"Finnish": "v", "English": "o", "Swahili": "s", "Chinese": "d"}
+    fig, ax = plt.subplots()
+    for (lang, tokenizer), group in data.groupby(["Language", "Tokenizer"]):
+        y = group["Top10 Accuracy"].mean()
+        yerr = group["Top10 Accuracy"].std()
+        x = group["Morphology"].values[0]
+        ax.errorbar(
+            x,
+            y,
+            yerr=yerr,
+            fmt=marker_map[lang],
+            color=color_map[tokenizer],
+            label=f"{lang} ({tokenizer})",
+            markersize=10,
+        )
+
+    ax.set_xticks([-1, 0, 1, 2])
+    ax.set_yticks([0, 0.01, 0.02, 0.03, 0.04, 0.05])
+    # Split the legend into two: one for languages and one for tokenizers
+    language_handles = [
+        plt.Line2D(
+            [0], [0], marker=marker, color="w", markerfacecolor="k", markersize=10
+        )
+        for marker in marker_map.values()
+    ]
+    language_labels = list(marker_map.keys())
+    tokenizer_handles = [
+        plt.Line2D([0], [0], color=color) for color in color_map.values()
+    ]
+    tokenizer_labels = list(color_map.keys())
+
+    first_legend = ax.legend(
+        language_handles,
+        language_labels,
+        title="Language",
+        loc="upper right",
+        bbox_to_anchor=(1, 1),
+    )
+    ax.add_artist(first_legend)
+    ax.legend(
+        tokenizer_handles,
+        tokenizer_labels,
+        title="Tokenizer",
+        loc="upper right",
+        bbox_to_anchor=(0.85, 1),
+    )
+
+    plt.xlabel("← Prefixing                                      Suffixing →")
+    plt.ylabel("Top10 Accuracy")
+    plt.title(f"Top10 Accuracy vs Morphology for {model} model")
+    plt.grid(False)
+    plt.savefig(f"{DIR}/morphology_vs_top10accuracy_{model}.png")
+
+
 if __name__ == "__main__":
     results = load_results()
+    # ['Language', 'Tokenizer', 'Model Size', 'Seed', 'Eval Loss', 'Accuracy',
+    #  'F1', 'Perplexity', 'Top5 Accuracy', 'Top10 Accuracy', 'TTR',
+    #  'Avg Token Length', 'Language Code', 'Morphology']
     grouped = avg_and_var_across_seeds(results, "Eval Loss")
     boxplots_14m_perplexity(results)
+    mophology_vs_top10accuracy(results)
