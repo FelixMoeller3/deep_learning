@@ -114,16 +114,6 @@ def load_results():
     return results
 
 
-def avg_and_var_across_seeds(results, metric, groupby=None):
-    "Returs a DataFrame with MultiIndex mean and standard deviation"
-    if groupby is None:
-        groupby = ["Language", "Tokenizer", "Model Size"]
-    results = results.dropna(subset=[metric])
-    grouped = results.groupby(groupby).agg({metric: ["mean", "std"]})
-    grouped = grouped.reset_index()
-    return grouped
-
-
 def original_boxplots_14m_perplexity(results):
     fig, ax = plt.subplots()
     data = results[results["Model Size"] == "14m"]
@@ -331,10 +321,6 @@ def boxplots_60m_perplexity(results):
 def main():
     results = load_results()
     df = get_wandb_results()
-    # ['Language', 'Tokenizer', 'Model Size', 'Seed', 'Eval Loss', 'Accuracy',
-    #  'F1', 'Perplexity', 'Top5 Accuracy', 'Top10 Accuracy', 'TTR',
-    #  'Avg Token Length', 'Language Code', 'Morphology']
-    grouped = avg_and_var_across_seeds(results, "Eval Loss")
     mophology_vs_top10accuracy(results, model="14m")
     mophology_vs_top10accuracy(results, model="60m")
     boxplots_14m_perplexity(results)
