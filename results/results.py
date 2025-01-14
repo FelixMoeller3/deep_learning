@@ -7,6 +7,7 @@ import os
 import seaborn as sns
 import wandb
 import pandas as pd
+import numpy as np
 
 api = wandb.Api()
 
@@ -378,6 +379,45 @@ def avg_token_length_vs_ttr(results):
     plt.tight_layout()
     plt.savefig(f"{DIR}/avg_token_length_vs_ttr.png")
 
+def create_bar_plot(data: dict[str,tuple[float]], title: str, y_label: str, ylim:float):
+    languages = ("Finnish", "English", "Swahili", "Chinese")
+    x = np.arange(len(languages))  # the label locations
+    width = 0.25  # the width of the bars
+    multiplier = 0
+
+    _, ax = plt.subplots(layout='constrained')
+
+    for attribute, measurement in data.items():
+        offset = width * multiplier
+        rects = ax.bar(x + offset, measurement, width, label=attribute)
+        ax.bar_label(rects, padding=3)
+        multiplier += 1
+
+    # Add some text for labels, title and custom x-axis tick labels, etc.
+    ax.set_ylabel(y_label)
+    ax.set_title(title)
+    ax.set_xticks(x + width - 0.126, languages)
+    ax.legend(loc='upper left', ncols=2)
+    ax.set_ylim(0.0, ylim)
+
+    plt.tight_layout()
+    plt.savefig(f"{DIR}/{title}.png")
+
+def create_ttr_plot():
+    # Values can also be found in results file. 
+    # We preprocessed them here for simplicity
+    ttr = {
+        'Leading': (0.59, 0.47, 0.50, 0.47),
+        'Trailing': (0.60, 0.48, 0.53, 0.47)
+    }
+    create_bar_plot(ttr, "Type-token ratio by language and tokenization", "type-token ratio", 0.7)
+
+def create_atl_plot():
+    atl = {
+        'Leading': (5.77, 5.73, 5.62, 1.68),
+        'Trailing': (5.62, 5.50, 5.43, 1.67)
+    }
+    create_bar_plot(atl, "Average token length by language and tokenization", "average token length", 7.0)
 
 def main():
     results = load_results()
@@ -393,6 +433,8 @@ def main():
     compare_leading_vs_trailing(results, model="60m", metric="Perplexity")
     make_wandb_loss_curve(df, model_size="14m")
     make_wandb_loss_curve(df, model_size="60m")
+    create_atl_plot()
+    create_ttr_plot()
 
 
 if __name__ == "__main__":
