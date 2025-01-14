@@ -4,7 +4,7 @@
 # !pip install wandb
 # import wandb
 # import os
-# os.environ["WANDB_API_KEY"] = "9c64c54fc2d4f000d2844311794a8e230e2d6454"
+# os.environ["WANDB_API_KEY"] = <API_KEY_HERE>
 # from google.colab import drive
 # drive.mount('/content/drive')
 ############################################
