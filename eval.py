@@ -6,8 +6,7 @@
 # drive.mount('/content/drive')
 ################### COLAB ###################
 
-import os
-from datasets import load_dataset, Dataset, DatasetDict
+from datasets import Dataset, DatasetDict
 from transformers import (
     GPTNeoXConfig,
     GPTNeoXForCausalLM,
@@ -17,7 +16,6 @@ from transformers import (
     DataCollatorForLanguageModeling,
 )
 import torch
-import evaluate
 import numpy as np
 import pprint
 from sklearn.metrics import accuracy_score, f1_score

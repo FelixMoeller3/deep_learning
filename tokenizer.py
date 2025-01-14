@@ -2,7 +2,6 @@ from datasets import load_dataset
 from transformers import convert_slow_tokenizer, PreTrainedTokenizerFast
 import tokenizers
 import sentencepiece as spm
-import pandas as pd
 import os
 import tempfile
 import json

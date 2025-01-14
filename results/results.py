@@ -1,6 +1,5 @@
 # the necessary results.csv file is downloaded from the gsheet
 
-from pprint import pprint
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
@@ -210,7 +209,7 @@ def compare_leading_vs_trailing(results, model="14m", metric="Top10 Accuracy"):
             morphology = group["Morphology"].values[0]
             summary.append((lang, morphology, diff_percent))
 
-    fig, ax = plt.subplots()
+    _, ax = plt.subplots()
     langs, morphologies, diffs = zip(*summary)
 
     for lang, morphology, diff in summary:
